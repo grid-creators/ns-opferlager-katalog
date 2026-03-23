@@ -4,7 +4,7 @@ Searchable web application and structured dataset based on the **Katalog der NS-
 
 ## Project Idea
 
-**[Dr. Anne Dr. Anne Purschwitz](https://www.geschichte.uni-halle.de/mitarbeiter/purschwitz/)**
+**[Dr. Anne Purschwitz](https://www.geschichte.uni-halle.de/mitarbeiter/purschwitz/)**
 
 ## Data Source
 
