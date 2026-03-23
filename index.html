@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Katalog der NS-Opferlager in Österreich</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f5f5f5; color: #1a1a1a; }
+
+header { background: #2c3e50; color: #fff; padding: 1rem 1.5rem; }
+header h1 { font-size: 1.3rem; font-weight: 600; }
+header p { font-size: .85rem; opacity: .8; margin-top: .25rem; }
+
+/* layout */
+.app { display: flex; flex-direction: column; height: calc(100vh - 70px); }
+.top-bar { display: flex; flex-wrap: wrap; gap: .5rem; padding: .75rem 1rem; background: #fff; border-bottom: 1px solid #ddd; align-items: center; }
+.top-bar label { font-size: .8rem; font-weight: 600; color: #555; }
+.top-bar input, .top-bar select { font-size: .85rem; padding: .35rem .5rem; border: 1px solid #ccc; border-radius: 4px; }
+#search { width: 280px; }
+#bundesland { width: 180px; }
+.count { font-size: .8rem; color: #666; margin-left: auto; white-space: nowrap; }
+.view-toggle { display: flex; gap: 0; }
+.view-toggle button { font-size: .8rem; padding: .35rem .75rem; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+.view-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.view-toggle button:last-child { border-radius: 0 4px 4px 0; border-left: 0; }
+.view-toggle button.active { background: #2c3e50; color: #fff; border-color: #2c3e50; }
+
+.main { flex: 1; display: flex; min-height: 0; position: relative; }
+
+/* map */
+#map { width: 100%; height: 100%; display: none; }
+#map.visible { display: block; }
+
+/* table */
+.table-wrap { width: 100%; height: 100%; overflow: auto; display: none; }
+.table-wrap.visible { display: block; }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+thead { position: sticky; top: 0; z-index: 2; }
+th { background: #34495e; color: #fff; padding: .5rem .6rem; text-align: left; font-weight: 600; white-space: nowrap; cursor: pointer; user-select: none; }
+th:hover { background: #3d566e; }
+th .arrow { font-size: .7rem; margin-left: .25rem; }
+td { padding: .45rem .6rem; border-bottom: 1px solid #e0e0e0; vertical-align: top; }
+tr:hover td { background: #eef3f8; }
+tr.no-coords td { color: #888; }
+td.wrap { max-width: 300px; white-space: normal; word-break: break-word; }
+td.nowrap { white-space: nowrap; }
+
+/* detail panel (used in map view) */
+.detail-panel { display: none; position: absolute; top: 0; right: 0; width: 380px; height: 100%; background: #fff; border-left: 1px solid #ccc; z-index: 1000; overflow-y: auto; box-shadow: -2px 0 8px rgba(0,0,0,.12); }
+.detail-panel.open { display: block; }
+.detail-panel .close-btn { position: absolute; top: .5rem; right: .75rem; background: none; border: none; font-size: 1.4rem; cursor: pointer; color: #666; }
+.detail-panel .close-btn:hover { color: #000; }
+.detail-panel h2 { font-size: 1rem; padding: 1rem 1rem .5rem; color: #2c3e50; }
+.detail-panel dl { padding: 0 1rem 1rem; }
+.detail-panel dt { font-size: .75rem; font-weight: 600; color: #888; margin-top: .6rem; }
+.detail-panel dd { font-size: .85rem; margin: .15rem 0 0; }
+
+/* popup */
+.leaflet-popup-content { font-size: .82rem; line-height: 1.4; max-width: 300px; }
+.leaflet-popup-content strong { color: #2c3e50; }
+
+/* responsive */
+@media (max-width: 700px) {
+  #search { width: 100%; }
+  .detail-panel { width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Katalog der NS-Opferlager in &Ouml;sterreich</h1>
+  <p>Stand: 31. J&auml;nner 2022 &mdash; Bundesdenkmalamt</p>
+</header>
+
+<div class="app">
+  <div class="top-bar">
+    <div>
+      <label for="search">Suche</label><br>
+      <input id="search" type="text" placeholder="Gemeinde, Lager, Text&hellip;">
+    </div>
+    <div>
+      <label for="bundesland">Bundesland</label><br>
+      <select id="bundesland">
+        <option value="">Alle</option>
+      </select>
+    </div>
+    <div>
+      <label>&nbsp;</label><br>
+      <label style="font-weight:normal"><input type="checkbox" id="onlyCoords"> Nur mit Koordinaten</label>
+    </div>
+    <div class="view-toggle">
+      <button id="btn-map" class="active">Karte</button>
+      <button id="btn-table">Tabelle</button>
+    </div>
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="main">
+    <div id="map" class="visible"></div>
+    <div class="table-wrap" id="tableWrap">
+      <table>
+        <thead><tr id="thead-row"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="detail-panel" id="detail">
+      <button class="close-btn" id="detail-close">&times;</button>
+      <h2 id="detail-title"></h2>
+      <dl id="detail-dl"></dl>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<script>
+// ---------- DATA (embedded) ----------
+let DATA = [];
+
+// ---------- Color map ----------
+const BL_COLORS = {
+  'Burgenland': '#e6194b',
+  'Kärnten': '#3cb44b',
+  'Niederösterreich': '#4363d8',
+  'Oberösterreich': '#f58231',
+  'Salzburg': '#911eb4',
+  'Steiermark': '#42d4f4',
+  'Tirol': '#f032e6',
+  'Vorarlberg': '#bfef45',
+  'Wien': '#e6beff',
+};
+
+// ---------- State ----------
+let map, markerGroup, markers = [];
+let currentView = 'map';
+let sortCol = null, sortAsc = true;
+let filtered = [];
+
+const COLS = [
+  { key: 'Bundesland', label: 'Bundesland', cls: 'nowrap' },
+  { key: 'Politische Gemeinde', label: 'Gemeinde', cls: 'nowrap' },
+  { key: 'Lagerbezeichnung', label: 'Lagerbezeichnung', cls: 'wrap' },
+  { key: 'Lagerinsassen und Geschichte', label: 'Geschichte', cls: 'wrap' },
+  { key: 'Lokalisierung', label: 'Lokalisierung', cls: 'wrap' },
+  { key: 'Grundstücksnummern', label: 'Grundst.', cls: 'wrap' },
+  { key: 'Koordinaten', label: 'Koord.', cls: 'nowrap' },
+  { key: 'Literatur und Quellenangaben', label: 'Literatur', cls: 'wrap' },
+];
+
+// ---------- Init ----------
+async function init() {
+  const resp = await fetch('data.json');
+  DATA = await resp.json();
+
+  // Populate Bundesland filter
+  const bls = [...new Set(DATA.map(d => d.Bundesland))].sort();
+  const sel = document.getElementById('bundesland');
+  bls.forEach(b => { const o = document.createElement('option'); o.value = b; o.textContent = b; sel.appendChild(o); });
+
+  // Init map
+  map = L.map('map').setView([47.5, 14.5], 7);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(map);
+
+  markerGroup = L.markerClusterGroup({
+    maxClusterRadius: 45,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    chunkedLoading: true,
+  });
+  map.addLayer(markerGroup);
+
+  // Build table header
+  const tr = document.getElementById('thead-row');
+  COLS.forEach((c, i) => {
+    const th = document.createElement('th');
+    th.textContent = c.label;
+    th.dataset.idx = i;
+    th.innerHTML += ' <span class="arrow"></span>';
+    th.onclick = () => toggleSort(i);
+    tr.appendChild(th);
+  });
+
+  // Events
+  document.getElementById('search').addEventListener('input', debounce(applyFilters, 200));
+  document.getElementById('bundesland').addEventListener('change', applyFilters);
+  document.getElementById('onlyCoords').addEventListener('change', applyFilters);
+  document.getElementById('btn-map').addEventListener('click', () => setView('map'));
+  document.getElementById('btn-table').addEventListener('click', () => setView('table'));
+  document.getElementById('detail-close').addEventListener('click', closeDetail);
+
+  applyFilters();
+}
+
+// ---------- Filtering ----------
+function applyFilters() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const bl = document.getElementById('bundesland').value;
+  const onlyC = document.getElementById('onlyCoords').checked;
+
+  filtered = DATA.filter(d => {
+    if (bl && d.Bundesland !== bl) return false;
+    if (onlyC && d.lon == null) return false;
+    if (q) {
+      const hay = [
+        d.Bundesland, d['Politische Gemeinde'], d.Lagerbezeichnung,
+        d['Lagerinsassen und Geschichte'], d.Lokalisierung,
+        d['Literatur und Quellenangaben'],
+      ].join(' ').toLowerCase();
+      // support multiple words (AND)
+      const words = q.split(/\s+/);
+      if (!words.every(w => hay.includes(w))) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('count').textContent =
+    `${filtered.length} von ${DATA.length} Einträgen` +
+    (filtered.filter(d => d.lon != null).length < filtered.length
+      ? ` (${filtered.filter(d => d.lon != null).length} auf Karte)`
+      : '');
+
+  updateMap();
+  updateTable();
+}
+
+// ---------- Map ----------
+function updateMap() {
+  markerGroup.clearLayers();
+  markers = [];
+
+  filtered.forEach((d, i) => {
+    if (d.lon == null) return;
+    const color = BL_COLORS[d.Bundesland] || '#999';
+    const icon = L.divIcon({
+      className: '',
+      html: `<svg width="14" height="14"><circle cx="7" cy="7" r="6" fill="${color}" stroke="#fff" stroke-width="1.5" opacity=".85"/></svg>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+    });
+    const m = L.marker([d.lat, d.lon], { icon });
+    m.bindPopup(() => popupHtml(d), { maxWidth: 320 });
+    m.on('click', () => showDetail(d));
+    markers.push(m);
+    markerGroup.addLayer(m);
+  });
+
+  if (markers.length > 0) {
+    const grp = L.featureGroup(markers);
+    map.fitBounds(grp.getBounds().pad(0.05));
+  }
+}
+
+function popupHtml(d) {
+  return `<strong>${esc(d['Politische Gemeinde'])}</strong><br>
+${esc(d.Lagerbezeichnung)}<br>
+<span style="color:#666">${esc(d.Bundesland)}</span>`;
+}
+
+// ---------- Detail panel ----------
+function showDetail(d) {
+  const panel = document.getElementById('detail');
+  document.getElementById('detail-title').textContent = d['Politische Gemeinde'] + ' — ' + d.Lagerbezeichnung;
+  const dl = document.getElementById('detail-dl');
+  dl.innerHTML = '';
+  const fields = [
+    ['Bundesland', d.Bundesland],
+    ['Politische Gemeinde', d['Politische Gemeinde']],
+    ['Lagerbezeichnung', d.Lagerbezeichnung],
+    ['Lagerinsassen und Geschichte', d['Lagerinsassen und Geschichte']],
+    ['Lokalisierung', d.Lokalisierung],
+    ['Grundstücksnummern', d.Grundstücksnummern],
+    ['Koordinaten', d.Koordinaten],
+    ['Literatur und Quellenangaben', d['Literatur und Quellenangaben']],
+  ];
+  fields.forEach(([label, val]) => {
+    if (!val) return;
+    const dt = document.createElement('dt'); dt.textContent = label;
+    const dd = document.createElement('dd'); dd.innerHTML = linkify(esc(val));
+    dl.appendChild(dt); dl.appendChild(dd);
+  });
+  panel.classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail').classList.remove('open');
+}
+
+// ---------- Table ----------
+function updateTable() {
+  const tbody = document.getElementById('tbody');
+  // Sort
+  let rows = [...filtered];
+  if (sortCol !== null) {
+    const key = COLS[sortCol].key;
+    rows.sort((a, b) => {
+      const va = (a[key] || '').toLowerCase();
+      const vb = (b[key] || '').toLowerCase();
+      return sortAsc ? va.localeCompare(vb, 'de') : vb.localeCompare(va, 'de');
+    });
+  }
+
+  // Render (limit for performance)
+  const MAX = 500;
+  const slice = rows.slice(0, MAX);
+  let html = '';
+  slice.forEach(d => {
+    const cls = d.lon == null ? ' class="no-coords"' : '';
+    html += `<tr${cls}>`;
+    COLS.forEach(c => {
+      const val = d[c.key] || '';
+      html += `<td class="${c.cls}">${linkify(esc(val))}</td>`;
+    });
+    html += '</tr>';
+  });
+  if (rows.length > MAX) {
+    html += `<tr><td colspan="${COLS.length}" style="text-align:center;padding:1rem;color:#999">
+      Zeige ${MAX} von ${rows.length} Einträgen. Bitte Suche verfeinern.</td></tr>`;
+  }
+  tbody.innerHTML = html;
+
+  // Update sort arrows
+  document.querySelectorAll('#thead-row th').forEach((th, i) => {
+    th.querySelector('.arrow').textContent = sortCol === i ? (sortAsc ? '▲' : '▼') : '';
+  });
+}
+
+function toggleSort(i) {
+  if (sortCol === i) sortAsc = !sortAsc;
+  else { sortCol = i; sortAsc = true; }
+  updateTable();
+}
+
+// ---------- View toggle ----------
+function setView(v) {
+  currentView = v;
+  document.getElementById('map').classList.toggle('visible', v === 'map');
+  document.getElementById('tableWrap').classList.toggle('visible', v === 'table');
+  document.getElementById('btn-map').classList.toggle('active', v === 'map');
+  document.getElementById('btn-table').classList.toggle('active', v === 'table');
+  if (v === 'map') { map.invalidateSize(); closeDetail(); }
+}
+
+// ---------- Util ----------
+function esc(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function linkify(s) {
+  return s.replace(/(https?:\/\/[^\s<,;]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+}
+
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+// ---------- Boot ----------
+init();
+</script>
+</body>
+</html>

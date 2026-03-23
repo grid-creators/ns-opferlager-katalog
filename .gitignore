@@ -1,0 +1,4 @@
+*.pdf
+*.jar
+*.xml
+__pycache__/
