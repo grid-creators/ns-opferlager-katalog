@@ -2,6 +2,10 @@
 
 Searchable web application and structured dataset based on the **Katalog der NS-Opferlager in Österreich** (Stand: 31. Jänner 2022), published by the Austrian Federal Monuments Authority (Bundesdenkmalamt).
 
+## Project Idea
+
+**[Dr. Anne Dr. Anne Purschwitz](https://www.geschichte.uni-halle.de/mitarbeiter/purschwitz/)**
+
 ## Data Source
 
 The original catalog is available as PDF from the Bundesdenkmalamt:
